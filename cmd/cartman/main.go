@@ -321,14 +321,14 @@ func runSearchMode(query string) {
 	}
 
 	fmt.Println()
-	fmt.Print("Numéro à lancer, ou Entrée pour annuler > ")
+	fmt.Print("Entre le numéro de l'épisode à lancer, ou appuie sur Entrée pour quitter > ")
 
 	reader := bufio.NewReader(os.Stdin)
 	input, _ := reader.ReadString('\n')
 	input = strings.TrimSpace(input)
 
 	if input == "" {
-		fmt.Println("Annulé.")
+		fmt.Println("Fermeture de la recherche.")
 		return
 	}
 

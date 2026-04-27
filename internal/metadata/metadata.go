@@ -190,22 +190,115 @@ var englishTitles = map[EpisodeKey]string{
 	{10, 13}: "Go God Go XII",
 	{10, 14}: "Stanley's Cup",
 
-	// Useful later-season searchable entries.
+	// Season 11
+	{11, 1}:  "With Apologies to Jesse Jackson",
+	{11, 2}:  "Cartman Sucks",
+	{11, 3}:  "Lice Capades",
+	{11, 4}:  "The Snuke",
+	{11, 5}:  "Fantastic Easter Special",
+	{11, 6}:  "D-Yikes!",
+	{11, 7}:  "Night of the Living Homeless",
+	{11, 8}:  "Le Petit Tourette",
+	{11, 9}:  "More Crap",
 	{11, 10}: "Imaginationland Episode I",
 	{11, 11}: "Imaginationland Episode II",
 	{11, 12}: "Imaginationland Episode III",
+	{11, 13}: "Guitar Queer-O",
+	{11, 14}: "The List",
+
+	// Season 12
+	{12, 1}:  "Tonsil Trouble",
+	{12, 2}:  "Britney's New Look",
+	{12, 3}:  "Major Boobage",
+	{12, 4}:  "Canada on Strike",
+	{12, 5}:  "Eek, a Penis!",
 	{12, 6}:  "Over Logging",
+	{12, 7}:  "Super Fun Time",
+	{12, 8}:  "The China Probrem",
 	{12, 9}:  "Breast Cancer Show Ever",
+	{12, 10}: "Pandemic",
+	{12, 11}: "Pandemic 2: The Startling",
+	{12, 12}: "About Last Night...",
+	{12, 13}: "Elementary School Musical",
+	{12, 14}: "The Ungroundable",
+
+	// Season 13
+	{13, 1}:  "The Ring",
+	{13, 2}:  "The Coon",
+	{13, 3}:  "Margaritaville",
+	{13, 4}:  "Eat, Pray, Queef",
+	{13, 5}:  "Fishsticks",
+	{13, 6}:  "Pinewood Derby",
+	{13, 7}:  "Fatbeard",
+	{13, 8}:  "Dead Celebrities",
 	{13, 9}:  "Butters' Bottom Bitch",
+	{13, 10}: "W.T.F.",
+	{13, 11}: "Whale Whores",
+	{13, 12}: "The F Word",
+	{13, 13}: "Dances with Smurfs",
+	{13, 14}: "Pee",
+
+	// Season 14
+	{14, 1}:  "Sexual Healing",
+	{14, 2}:  "The Tale of Scrotie McBoogerballs",
+	{14, 3}:  "Medicinal Fried Chicken",
+	{14, 4}:  "You Have 0 Friends",
 	{14, 5}:  "200",
 	{14, 6}:  "201",
+	{14, 7}:  "Crippled Summer",
+	{14, 8}:  "Poor and Stupid",
+	{14, 9}:  "It's a Jersey Thing",
+	{14, 10}: "Insheeption",
+	{14, 11}: "Coon 2: Hindsight",
+	{14, 12}: "Mysterion Rises",
+	{14, 13}: "Coon vs. Coon and Friends",
+	{14, 14}: "Crème Fraîche",
+
+	// Season 15
+	{15, 1}:  "HUMANCENTiPAD",
+	{15, 2}:  "Funnybot",
+	{15, 3}:  "Royal Pudding",
+	{15, 4}:  "T.M.I.",
+	{15, 5}:  "Crack Baby Athletic Association",
+	{15, 6}:  "City Sushi",
 	{15, 7}:  "You're Getting Old",
 	{15, 8}:  "Ass Burgers",
+	{15, 9}:  "The Last of the Meheecans",
+	{15, 10}: "Bass to Mouth",
+	{15, 11}: "Broadway Bro Down",
+	{15, 12}: "1%",
+	{15, 13}: "A History Channel Thanksgiving",
+	{15, 14}: "The Poor Kid",
+
+	// Season 16
+	{16, 1}:  "Reverse Cowgirl",
+	{16, 2}:  "Cash for Gold",
+	{16, 3}:  "Faith Hilling",
+	{16, 4}:  "Jewpacabra",
+	{16, 5}:  "Butterballs",
 	{16, 6}:  "I Should Have Never Gone Ziplining",
+	{16, 7}:  "Cartman Finds Love",
+	{16, 8}:  "Sarcastaball",
+	{16, 9}:  "Raising the Bar",
+	{16, 10}: "Insecurity",
+	{16, 11}: "Going Native",
+	{16, 12}: "A Nightmare on Face Time",
+	{16, 13}: "A Scause for Applause",
+	{16, 14}: "Obama Wins!",
+
+	// Season 17
+	{17, 1}:  "Let Go, Let Gov",
 	{17, 2}:  "Informative Murder Porn",
+	{17, 3}:  "World War Zimmerman",
+	{17, 4}:  "Goth Kids 3: Dawn of the Posers",
+	{17, 5}:  "Taming Strange",
+	{17, 6}:  "Ginger Cow",
 	{17, 7}:  "Black Friday",
 	{17, 8}:  "A Song of Ass and Fire",
 	{17, 9}:  "Titties and Dragons",
+	{17, 10}: "The Hobbit",
+
+	// Season 18
 	{18, 1}:  "Go Fund Yourself",
 	{18, 2}:  "Gluten Free Ebola",
 	{18, 3}:  "The Cissy",
@@ -216,6 +309,8 @@ var englishTitles = map[EpisodeKey]string{
 	{18, 8}:  "Cock Magic",
 	{18, 9}:  "#REHASH",
 	{18, 10}: "#HappyHolograms",
+
+	// Season 19
 	{19, 1}:  "Stunning and Brave",
 	{19, 2}:  "Where My Country Gone?",
 	{19, 3}:  "The City Part of Town",
@@ -226,6 +321,8 @@ var englishTitles = map[EpisodeKey]string{
 	{19, 8}:  "Sponsored Content",
 	{19, 9}:  "Truth and Advertising",
 	{19, 10}: "PC Principal Final Justice",
+
+	// Season 20
 	{20, 1}:  "Member Berries",
 	{20, 2}:  "Skank Hunt",
 	{20, 3}:  "The Damned",
@@ -236,6 +333,8 @@ var englishTitles = map[EpisodeKey]string{
 	{20, 8}:  "Members Only",
 	{20, 9}:  "Not Funny",
 	{20, 10}: "The End of Serialization as We Know It",
+
+	// Season 21
 	{21, 1}:  "White People Renovating Houses",
 	{21, 2}:  "Put It Down",
 	{21, 3}:  "Holiday Special",
@@ -246,6 +345,8 @@ var englishTitles = map[EpisodeKey]string{
 	{21, 8}:  "Moss Piglets",
 	{21, 9}:  "SUPER HARD PCness",
 	{21, 10}: "Splatty Tomato",
+
+	// Season 22
 	{22, 1}:  "Dead Kids",
 	{22, 2}:  "A Boy and a Priest",
 	{22, 3}:  "The Problem with a Poo",
@@ -256,6 +357,8 @@ var englishTitles = map[EpisodeKey]string{
 	{22, 8}:  "Buddha Box",
 	{22, 9}:  "Unfulfilled",
 	{22, 10}: "Bike Parade",
+
+	// Season 23
 	{23, 1}:  "Mexican Joker",
 	{23, 2}:  "Band in China",
 	{23, 3}:  "Shots!!!",
@@ -266,18 +369,40 @@ var englishTitles = map[EpisodeKey]string{
 	{23, 8}:  "Turd Burglars",
 	{23, 9}:  "Basic Cable",
 	{23, 10}: "Christmas Snow",
-	{25, 1}:  "Pajama Day",
-	{25, 2}:  "The Big Fix",
-	{25, 3}:  "City People",
-	{25, 4}:  "Back to the Cold War",
-	{25, 5}:  "Help, My Teenager Hates Me!",
-	{25, 6}:  "Credigree Weed St. Patrick's Day Special",
-	{26, 1}:  "Cupid Ye",
-	{26, 2}:  "The Worldwide Privacy Tour",
-	{26, 3}:  "Japanese Toilet",
-	{26, 4}:  "Deep Learning",
-	{26, 5}:  "DikinBaus Hot Dogs",
-	{26, 6}:  "Spring Break",
+
+	// Season 24
+	{24, 1}: "The Pandemic Special",
+	{24, 2}: "South ParQ Vaccination Special",
+
+	// Season 25
+	{25, 1}: "Pajama Day",
+	{25, 2}: "The Big Fix",
+	{25, 3}: "City People",
+	{25, 4}: "Back to the Cold War",
+	{25, 5}: "Help, My Teenager Hates Me!",
+	{25, 6}: "Credigree Weed St. Patrick's Day Special",
+
+	// Season 26
+	{26, 1}: "Cupid Ye",
+	{26, 2}: "The Worldwide Privacy Tour",
+	{26, 3}: "Japanese Toilet",
+	{26, 4}: "Deep Learning",
+	{26, 5}: "DikinBaus Hot Dogs",
+	{26, 6}: "Spring Break",
+
+	// Season 27
+	{27, 1}: "Sermon on the 'Mount",
+	{27, 2}: "Got a Nut",
+	{27, 3}: "Sickofancy",
+	{27, 4}: "Wok is Dead",
+	{27, 5}: "Conflict of Interest",
+
+	// Season 28
+	{28, 1}: "Twisted Christian",
+	{28, 2}: "The Woman In The Hat",
+	{28, 3}: "Sora Not Sorry",
+	{28, 4}: "Turkey Trot",
+	{28, 5}: "The Crap Out",
 }
 
 func TitleFor(season, episode int) string {
