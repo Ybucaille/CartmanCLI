@@ -1,9 +1,54 @@
-.env
-.venv/
-venv/
-__pycache__/
-*.pyc
-node_modules/
-dist/
-build/
+# Build outputs
+/cartman
+/cartman.exe
+/bin/
+/dist/
+/build/
+*.out
+*.test
+*.prof
+*.cover
+coverage.out
+
+# Go workspace / vendoring local
+go.work
+go.work.sum
+/vendor/
+
+# Runtime data
+*.log
+*.tmp
+*.cache
+
+# CartmanCLI local history / runtime files
+last.json
+history.json
+watch-later/
+.mpv-watch-later/
+
+# OS / editor junk
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# JetBrains
+.idea/
+
+# Vim / Neovim
+*.swp
+*.swo
+*.swn
+Session.vim
+
+# Linux file manager thumbnails / trash
+.Trash-*/
+.directory
+
+# Env files
+.env
+.env.*

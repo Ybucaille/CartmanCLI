@@ -35,3 +35,12 @@ Ensuite :
 git add README.md
 git commit -m "Update README"
 git push
+
+## Install from release
+
+Download the latest Linux archive from the GitHub Releases page, then:
+
+```bash
+tar -xzf cartman-linux-amd64.tar.gz
+chmod +x cartman
+sudo mv cartman /usr/local/bin/cartman
