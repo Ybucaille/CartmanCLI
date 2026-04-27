@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,8 +12,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"CartmanCLI/internal/history"
+	"CartmanCLI/internal/metadata"
 	"CartmanCLI/internal/scraper"
 )
+
+const version = "v0.2.0-dev"
 
 type step int
 
@@ -80,16 +84,70 @@ var (
 )
 
 func main() {
-	if len(os.Args) == 2 && os.Args[1] == "resume" {
+	args := os.Args[1:]
+
+	if len(args) == 0 {
+		runTUIMode()
+		return
+	}
+
+	switch args[0] {
+	case "play":
+		if len(args) != 3 {
+			fmt.Println("Usage: cartman play <saison> <episode>")
+			return
+		}
+
+		season, episode, ok := parseSeasonEpisodeArgs(args[1], args[2])
+		if !ok {
+			return
+		}
+
+		runPlayMode(season, episode)
+
+	case "resume":
+		if len(args) != 1 {
+			fmt.Println("Usage: cartman resume")
+			return
+		}
+
 		runResumeMode()
-		return
-	}
 
-	if len(os.Args) == 3 {
-		runDirectMode()
-		return
-	}
+	case "list":
+		if len(args) != 2 {
+			fmt.Println("Usage: cartman list <saison>")
+			return
+		}
 
+		season, err := strconv.Atoi(args[1])
+		if err != nil || season <= 0 {
+			fmt.Println("Erreur: saison invalide")
+			return
+		}
+
+		runListMode(season)
+
+	case "search":
+		if len(args) < 2 {
+			fmt.Println(`Usage: cartman search "mot clé"`)
+			return
+		}
+
+		query := strings.Join(args[1:], " ")
+		runSearchMode(query)
+
+	case "version", "--version", "-v":
+		fmt.Println("CartmanCLI", version)
+
+	case "help", "--help", "-h":
+		printHelp()
+
+	default:
+		printUnknownCommand(args[0])
+	}
+}
+
+func runTUIMode() {
 	last, err := history.LoadLast()
 	hasLast := err == nil && last.Season > 0 && last.Episode > 0
 
@@ -109,19 +167,23 @@ func main() {
 	}
 }
 
-func runDirectMode() {
-	season, err := strconv.Atoi(os.Args[1])
+func parseSeasonEpisodeArgs(rawSeason, rawEpisode string) (int, int, bool) {
+	season, err := strconv.Atoi(rawSeason)
 	if err != nil || season <= 0 {
 		fmt.Println("Erreur: saison invalide")
-		return
+		return 0, 0, false
 	}
 
-	episode, err := strconv.Atoi(os.Args[2])
+	episode, err := strconv.Atoi(rawEpisode)
 	if err != nil || episode <= 0 {
 		fmt.Println("Erreur: épisode invalide")
-		return
+		return 0, 0, false
 	}
 
+	return season, episode, true
+}
+
+func runPlayMode(season, episode int) {
 	pageURL, err := scraper.ResolveEpisodeURL(season, episode)
 	if err != nil {
 		fmt.Println("URL réelle non trouvée, tentative fallback.")
@@ -135,7 +197,189 @@ func runDirectMode() {
 		}
 	}
 
-	fmt.Println("Page URL :", pageURL)
+	playEpisode(season, episode, pageURL)
+}
+
+func runResumeMode() {
+	last, err := history.LoadLast()
+	if err != nil {
+		fmt.Println("Aucun épisode à reprendre pour l’instant.")
+		fmt.Println("Lance d’abord un épisode avec : cartman play 1 1")
+		return
+	}
+
+	if last.Season <= 0 || last.Episode <= 0 {
+		fmt.Println("Historique invalide, impossible de reprendre.")
+		return
+	}
+
+	target := preferredTarget(last.PageURL, last.EmbedURL)
+	if strings.TrimSpace(target) == "" {
+		fmt.Println("Historique trouvé, mais aucune URL exploitable.")
+		return
+	}
+
+	title := metadata.DisplayTitle(last.Season, last.Episode, "")
+
+	fmt.Printf("Reprise S%02dE%02d · %s\n", last.Season, last.Episode, title)
+	fmt.Println("URL:", target)
+
+	if err := openWithMPV(target); err != nil {
+		fmt.Println("Erreur mpv:", err)
+	}
+}
+
+func runListMode(season int) {
+	episodes, err := scraper.GetSeasonEpisodes(season)
+	if err != nil {
+		fmt.Println("Erreur:", err)
+		return
+	}
+
+	if len(episodes) == 0 {
+		fmt.Printf("Aucun épisode trouvé pour la saison %d.\n", season)
+		return
+	}
+
+	fmt.Printf("Season %d\n\n", season)
+
+	for _, ep := range episodes {
+		title := metadata.DisplayTitle(ep.Season, ep.Number, ep.Title)
+
+		fmt.Printf("S%02dE%02d · %s\n", ep.Season, ep.Number, title)
+		fmt.Printf("  %s\n", ep.URL)
+	}
+}
+
+func runSearchMode(query string) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		fmt.Println(`Usage: cartman search "mot clé"`)
+		return
+	}
+
+	normalizedQuery := normalizeSearch(query)
+	matches := []scraper.Episode{}
+
+	wantsSeason := 0
+	wantsEpisode := 0
+
+	if strings.HasPrefix(normalizedQuery, "s") && strings.Contains(normalizedQuery, "e") {
+		raw := strings.TrimPrefix(normalizedQuery, "s")
+		parts := strings.SplitN(raw, "e", 2)
+
+		if len(parts) == 2 {
+			s, sErr := atoiLoose(parts[0])
+			e, eErr := atoiLoose(parts[1])
+
+			if sErr == nil && eErr == nil && s > 0 && e > 0 {
+				wantsSeason = s
+				wantsEpisode = e
+			}
+		}
+	}
+
+	fmt.Printf("Recherche de %q...\n\n", query)
+
+	for _, season := range seasons {
+		episodes, err := scraper.GetSeasonEpisodes(season)
+		if err != nil {
+			continue
+		}
+
+		for _, ep := range episodes {
+			searchable := metadata.SearchableText(ep.Season, ep.Number, ep.Title)
+			searchable += " " + ep.URL
+			searchable = normalizeSearch(searchable)
+
+			if wantsSeason > 0 && wantsEpisode > 0 {
+				if ep.Season == wantsSeason && ep.Number == wantsEpisode {
+					matches = append(matches, ep)
+				}
+
+				continue
+			}
+
+			if strings.Contains(searchable, normalizedQuery) {
+				matches = append(matches, ep)
+			}
+		}
+	}
+
+	if len(matches) == 0 {
+		fmt.Println("Aucun épisode trouvé.")
+		fmt.Println()
+		fmt.Println(`Essaie par exemple : cartman search "s10e8" ou cartman list 10`)
+		return
+	}
+
+	for i, ep := range matches {
+		title := metadata.DisplayTitle(ep.Season, ep.Number, ep.Title)
+
+		fmt.Printf("%2d. S%02dE%02d · %s\n", i+1, ep.Season, ep.Number, title)
+		fmt.Printf("    %s\n", ep.URL)
+	}
+
+	fmt.Println()
+	fmt.Print("Numéro à lancer, ou Entrée pour annuler > ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "" {
+		fmt.Println("Annulé.")
+		return
+	}
+
+	choice, err := strconv.Atoi(input)
+	if err != nil || choice < 1 || choice > len(matches) {
+		fmt.Println("Choix invalide.")
+		return
+	}
+
+	selected := matches[choice-1]
+	playEpisode(selected.Season, selected.Number, selected.URL)
+}
+
+func normalizeSearch(input string) string {
+	input = strings.ToLower(input)
+	input = strings.TrimSpace(input)
+	input = strings.ReplaceAll(input, "é", "e")
+	input = strings.ReplaceAll(input, "è", "e")
+	input = strings.ReplaceAll(input, "ê", "e")
+	input = strings.ReplaceAll(input, "ë", "e")
+	input = strings.ReplaceAll(input, "à", "a")
+	input = strings.ReplaceAll(input, "â", "a")
+	input = strings.ReplaceAll(input, "ä", "a")
+	input = strings.ReplaceAll(input, "î", "i")
+	input = strings.ReplaceAll(input, "ï", "i")
+	input = strings.ReplaceAll(input, "ô", "o")
+	input = strings.ReplaceAll(input, "ö", "o")
+	input = strings.ReplaceAll(input, "ù", "u")
+	input = strings.ReplaceAll(input, "û", "u")
+	input = strings.ReplaceAll(input, "ü", "u")
+	input = strings.ReplaceAll(input, "ç", "c")
+
+	return input
+}
+
+func atoiLoose(input string) (int, error) {
+	input = strings.TrimSpace(input)
+	input = strings.TrimLeft(input, "0")
+
+	if input == "" {
+		input = "0"
+	}
+
+	return strconv.Atoi(input)
+}
+
+func playEpisode(season, episode int, pageURL string) {
+	title := metadata.DisplayTitle(season, episode, "")
+
+	fmt.Printf("Episode : S%02dE%02d · %s\n", season, episode, title)
+	fmt.Println("Page URL:", pageURL)
 
 	embedURL, err := scraper.GetEmbedURL(pageURL)
 	if err != nil {
@@ -158,31 +402,29 @@ func runDirectMode() {
 	}
 }
 
-func runResumeMode() {
-	last, err := history.LoadLast()
-	if err != nil {
-		fmt.Println("Aucun épisode à reprendre pour l’instant.")
-		fmt.Println("Lance d’abord un épisode avec : go run ./cmd/cartman 1 1")
-		return
-	}
+func printHelp() {
+	fmt.Println("CartmanCLI")
+	fmt.Println()
+	fmt.Println("Usage:")
+	fmt.Println("  cartman")
+	fmt.Println("  cartman play <saison> <episode>")
+	fmt.Println("  cartman resume")
+	fmt.Println("  cartman list <saison>")
+	fmt.Println(`  cartman search "mot clé"`)
+	fmt.Println("  cartman version")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  cartman")
+	fmt.Println("  cartman play 1 8")
+	fmt.Println("  cartman resume")
+	fmt.Println("  cartman list 7")
+	fmt.Println(`  cartman search "warcraft"`)
+}
 
-	if last.Season <= 0 || last.Episode <= 0 {
-		fmt.Println("Historique invalide, impossible de reprendre.")
-		return
-	}
-
-	target := preferredTarget(last.PageURL, last.EmbedURL)
-	if strings.TrimSpace(target) == "" {
-		fmt.Println("Historique trouvé, mais aucune URL exploitable.")
-		return
-	}
-
-	fmt.Printf("Reprise Saison %d · Episode %d\n", last.Season, last.Episode)
-	fmt.Println("URL:", target)
-
-	if err := openWithMPV(target); err != nil {
-		fmt.Println("Erreur mpv:", err)
-	}
+func printUnknownCommand(command string) {
+	fmt.Println("Commande inconnue:", command)
+	fmt.Println()
+	printHelp()
 }
 
 func (m model) Init() tea.Cmd {
@@ -423,10 +665,11 @@ func renderEpisodeView(m model) string {
 
 	for i := start; i < end; i++ {
 		episode := i + 1
+		title := metadata.DisplayTitle(m.season, episode, "")
 
-		line := fmt.Sprintf("  Episode %02d", episode)
+		line := fmt.Sprintf("  Episode %02d · %s", episode, title)
 		if m.cursor == i {
-			line = selectedStyle.Render("› Episode " + fmt.Sprintf("%02d", episode))
+			line = selectedStyle.Render("› Episode " + fmt.Sprintf("%02d", episode) + " · " + title)
 		} else {
 			line = normalStyle.Render(line)
 		}
@@ -448,15 +691,17 @@ func renderEpisodeView(m model) string {
 	b.WriteString("\n")
 	b.WriteString(footerStyle.Render("↑/↓ ou j/k · Entrée valider · b retour · q quitter"))
 
-	return boxStyle.Render(b.String())
+	return boxStyle.Width(72).Render(b.String())
 }
 
 func renderResultView(m model) string {
 	var b strings.Builder
 
+	title := metadata.DisplayTitle(m.season, m.episode, "")
+
 	b.WriteString(titleStyle.Render("CartmanCLI"))
 	b.WriteString("\n")
-	b.WriteString(subtitleStyle.Render(fmt.Sprintf("Saison %d · Episode %d", m.season, m.episode)))
+	b.WriteString(subtitleStyle.Render(fmt.Sprintf("S%02dE%02d · %s", m.season, m.episode, title)))
 	b.WriteString("\n\n")
 
 	if m.loading {
@@ -597,7 +842,8 @@ func renderHomeView(m model) string {
 	options := []string{}
 
 	if m.hasLast {
-		options = append(options, fmt.Sprintf("Reprendre Saison %d · Episode %d", m.lastWatch.Season, m.lastWatch.Episode))
+		title := metadata.DisplayTitle(m.lastWatch.Season, m.lastWatch.Episode, "")
+		options = append(options, fmt.Sprintf("Reprendre S%02dE%02d · %s", m.lastWatch.Season, m.lastWatch.Episode, title))
 	}
 
 	options = append(options, "Choisir une saison")
@@ -617,5 +863,5 @@ func renderHomeView(m model) string {
 	b.WriteString("\n")
 	b.WriteString(footerStyle.Render("↑/↓ ou j/k · Entrée valider · q quitter"))
 
-	return boxStyle.Render(b.String())
+	return boxStyle.Width(72).Render(b.String())
 }

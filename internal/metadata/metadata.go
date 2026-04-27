@@ -1,0 +1,317 @@
+package metadata
+
+import (
+	"fmt"
+	"strings"
+)
+
+type EpisodeKey struct {
+	Season int
+	Number int
+}
+
+type EpisodeMeta struct {
+	Season int
+	Number int
+	Title  string
+}
+
+var englishTitles = map[EpisodeKey]string{
+	// Season 1
+	{1, 1}:  "Cartman Gets an Anal Probe",
+	{1, 2}:  "Weight Gain 4000",
+	{1, 3}:  "Volcano",
+	{1, 4}:  "Big Gay Al's Big Gay Boat Ride",
+	{1, 5}:  "An Elephant Makes Love to a Pig",
+	{1, 6}:  "Death",
+	{1, 7}:  "Pinkeye",
+	{1, 8}:  "Starvin' Marvin",
+	{1, 9}:  "Mr. Hankey, the Christmas Poo",
+	{1, 10}: "Damien",
+	{1, 11}: "Tom's Rhinoplasty",
+	{1, 12}: "Mecha-Streisand",
+	{1, 13}: "Cartman's Mom Is a Dirty Slut",
+
+	// Season 2
+	{2, 1}:  "Terrance and Phillip in Not Without My Anus",
+	{2, 2}:  "Cartman's Mom Is Still a Dirty Slut",
+	{2, 3}:  "Chickenlover",
+	{2, 4}:  "Ike's Wee Wee",
+	{2, 5}:  "Conjoined Fetus Lady",
+	{2, 6}:  "The Mexican Staring Frog of Southern Sri Lanka",
+	{2, 7}:  "City on the Edge of Forever",
+	{2, 8}:  "Summer Sucks",
+	{2, 9}:  "Chef's Chocolate Salty Balls",
+	{2, 10}: "Chickenpox",
+	{2, 11}: "Roger Ebert Should Lay Off the Fatty Foods",
+	{2, 12}: "Clubhouses",
+	{2, 13}: "Cow Days",
+	{2, 14}: "Chef Aid",
+	{2, 15}: "Spookyfish",
+	{2, 16}: "Merry Christmas Charlie Manson!",
+	{2, 17}: "Gnomes",
+	{2, 18}: "Prehistoric Ice Man",
+
+	// Season 3
+	{3, 1}:  "Rainforest Schmainforest",
+	{3, 2}:  "Spontaneous Combustion",
+	{3, 3}:  "The Succubus",
+	{3, 4}:  "Tweek vs. Craig",
+	{3, 5}:  "Jakovasaurs",
+	{3, 6}:  "Sexual Harassment Panda",
+	{3, 7}:  "Cat Orgy",
+	{3, 8}:  "Two Guys Naked in a Hot Tub",
+	{3, 9}:  "Jewbilee",
+	{3, 10}: "Korn's Groovy Pirate Ghost Mystery",
+	{3, 11}: "Chinpokomon",
+	{3, 12}: "Hooked on Monkey Fonics",
+	{3, 13}: "Starvin' Marvin in Space",
+	{3, 14}: "The Red Badge of Gayness",
+	{3, 15}: "Mr. Hankey's Christmas Classics",
+	{3, 16}: "Are You There God? It's Me, Jesus",
+	{3, 17}: "World Wide Recorder Concert",
+
+	// Season 4
+	{4, 1}:  "The Tooth Fairy Tats 2000",
+	{4, 2}:  "Cartman's Silly Hate Crime 2000",
+	{4, 3}:  "Timmy 2000",
+	{4, 4}:  "Quintuplets 2000",
+	{4, 5}:  "Cartman Joins NAMBLA",
+	{4, 6}:  "Cherokee Hair Tampons",
+	{4, 7}:  "Chef Goes Nanners",
+	{4, 8}:  "Something You Can Do with Your Finger",
+	{4, 9}:  "Do the Handicapped Go to Hell?",
+	{4, 10}: "Probably",
+	{4, 11}: "Fourth Grade",
+	{4, 12}: "Trapper Keeper",
+	{4, 13}: "Helen Keller! The Musical",
+	{4, 14}: "Pip",
+	{4, 15}: "Fat Camp",
+	{4, 16}: "The Wacky Molestation Adventure",
+	{4, 17}: "A Very Crappy Christmas",
+
+	// Season 5
+	{5, 1}:  "It Hits the Fan",
+	{5, 2}:  "Cripple Fight",
+	{5, 3}:  "Super Best Friends",
+	{5, 4}:  "Scott Tenorman Must Die",
+	{5, 5}:  "Terrance and Phillip: Behind the Blow",
+	{5, 6}:  "Cartmanland",
+	{5, 7}:  "Proper Condom Use",
+	{5, 8}:  "Towelie",
+	{5, 9}:  "Osama bin Laden Has Farty Pants",
+	{5, 10}: "How to Eat with Your Butt",
+	{5, 11}: "The Entity",
+	{5, 12}: "Here Comes the Neighborhood",
+	{5, 13}: "Kenny Dies",
+	{5, 14}: "Butters' Very Own Episode",
+
+	// Season 6
+	{6, 1}:  "Jared Has Aides",
+	{6, 2}:  "Asspen",
+	{6, 3}:  "Freak Strike",
+	{6, 4}:  "Fun with Veal",
+	{6, 5}:  "The New Terrance and Phillip Movie Trailer",
+	{6, 6}:  "Professor Chaos",
+	{6, 7}:  "The Simpsons Already Did It",
+	{6, 8}:  "Red Hot Catholic Love",
+	{6, 9}:  "Free Hat",
+	{6, 10}: "Bebe's Boobs Destroy Society",
+	{6, 11}: "Child Abduction Is Not Funny",
+	{6, 12}: "A Ladder to Heaven",
+	{6, 13}: "The Return of the Fellowship of the Ring to the Two Towers",
+	{6, 14}: "The Death Camp of Tolerance",
+	{6, 15}: "The Biggest Douche in the Universe",
+	{6, 16}: "My Future Self n' Me",
+	{6, 17}: "Red Sleigh Down",
+
+	// Season 7
+	{7, 1}:  "Cancelled",
+	{7, 2}:  "Krazy Kripples",
+	{7, 3}:  "Toilet Paper",
+	{7, 4}:  "I'm a Little Bit Country",
+	{7, 5}:  "Fat Butt and Pancake Head",
+	{7, 6}:  "Lil' Crime Stoppers",
+	{7, 7}:  "Red Man's Greed",
+	{7, 8}:  "South Park Is Gay!",
+	{7, 9}:  "Christian Rock Hard",
+	{7, 10}: "Grey Dawn",
+	{7, 11}: "Casa Bonita",
+	{7, 12}: "All About Mormons",
+	{7, 13}: "Butt Out",
+	{7, 14}: "Raisins",
+	{7, 15}: "It's Christmas in Canada",
+
+	// Season 8
+	{8, 1}:  "Good Times with Weapons",
+	{8, 2}:  "Up the Down Steroid",
+	{8, 3}:  "The Passion of the Jew",
+	{8, 4}:  "You Got F'd in the A",
+	{8, 5}:  "AWESOM-O",
+	{8, 6}:  "The Jeffersons",
+	{8, 7}:  "Goobacks",
+	{8, 8}:  "Douche and Turd",
+	{8, 9}:  "Something Wall-Mart This Way Comes",
+	{8, 10}: "Pre-School",
+	{8, 11}: "Quest for Ratings",
+	{8, 12}: "Stupid Spoiled Whore Video Playset",
+	{8, 13}: "Cartman's Incredible Gift",
+	{8, 14}: "Woodland Critter Christmas",
+
+	// Season 9
+	{9, 1}:  "Mr. Garrison's Fancy New Vagina",
+	{9, 2}:  "Die Hippie, Die",
+	{9, 3}:  "Wing",
+	{9, 4}:  "Best Friends Forever",
+	{9, 5}:  "The Losing Edge",
+	{9, 6}:  "The Death of Eric Cartman",
+	{9, 7}:  "Erection Day",
+	{9, 8}:  "Two Days Before the Day After Tomorrow",
+	{9, 9}:  "Marjorine",
+	{9, 10}: "Follow That Egg!",
+	{9, 11}: "Ginger Kids",
+	{9, 12}: "Trapped in the Closet",
+	{9, 13}: "Free Willzyx",
+	{9, 14}: "Bloody Mary",
+
+	// Season 10
+	{10, 1}:  "The Return of Chef",
+	{10, 2}:  "Smug Alert!",
+	{10, 3}:  "Cartoon Wars Part I",
+	{10, 4}:  "Cartoon Wars Part II",
+	{10, 5}:  "A Million Little Fibers",
+	{10, 6}:  "ManBearPig",
+	{10, 7}:  "Tsst",
+	{10, 8}:  "Make Love, Not Warcraft",
+	{10, 9}:  "Mystery of the Urinal Deuce",
+	{10, 10}: "Miss Teacher Bangs a Boy",
+	{10, 11}: "Hell on Earth 2006",
+	{10, 12}: "Go God Go",
+	{10, 13}: "Go God Go XII",
+	{10, 14}: "Stanley's Cup",
+
+	// Useful later-season searchable entries.
+	{11, 10}: "Imaginationland Episode I",
+	{11, 11}: "Imaginationland Episode II",
+	{11, 12}: "Imaginationland Episode III",
+	{12, 6}:  "Over Logging",
+	{12, 9}:  "Breast Cancer Show Ever",
+	{13, 9}:  "Butters' Bottom Bitch",
+	{14, 5}:  "200",
+	{14, 6}:  "201",
+	{15, 7}:  "You're Getting Old",
+	{15, 8}:  "Ass Burgers",
+	{16, 6}:  "I Should Have Never Gone Ziplining",
+	{17, 2}:  "Informative Murder Porn",
+	{17, 7}:  "Black Friday",
+	{17, 8}:  "A Song of Ass and Fire",
+	{17, 9}:  "Titties and Dragons",
+	{18, 1}:  "Go Fund Yourself",
+	{18, 2}:  "Gluten Free Ebola",
+	{18, 3}:  "The Cissy",
+	{18, 4}:  "Handicar",
+	{18, 5}:  "The Magic Bush",
+	{18, 6}:  "Freemium Isn't Free",
+	{18, 7}:  "Grounded Vindaloop",
+	{18, 8}:  "Cock Magic",
+	{18, 9}:  "#REHASH",
+	{18, 10}: "#HappyHolograms",
+	{19, 1}:  "Stunning and Brave",
+	{19, 2}:  "Where My Country Gone?",
+	{19, 3}:  "The City Part of Town",
+	{19, 4}:  "You're Not Yelping",
+	{19, 5}:  "Safe Space",
+	{19, 6}:  "Tweek x Craig",
+	{19, 7}:  "Naughty Ninjas",
+	{19, 8}:  "Sponsored Content",
+	{19, 9}:  "Truth and Advertising",
+	{19, 10}: "PC Principal Final Justice",
+	{20, 1}:  "Member Berries",
+	{20, 2}:  "Skank Hunt",
+	{20, 3}:  "The Damned",
+	{20, 4}:  "Wieners Out",
+	{20, 5}:  "Douche and a Danish",
+	{20, 6}:  "Fort Collins",
+	{20, 7}:  "Oh, Jeez",
+	{20, 8}:  "Members Only",
+	{20, 9}:  "Not Funny",
+	{20, 10}: "The End of Serialization as We Know It",
+	{21, 1}:  "White People Renovating Houses",
+	{21, 2}:  "Put It Down",
+	{21, 3}:  "Holiday Special",
+	{21, 4}:  "Franchise Prequel",
+	{21, 5}:  "Hummels & Heroin",
+	{21, 6}:  "Sons a Witches",
+	{21, 7}:  "Doubling Down",
+	{21, 8}:  "Moss Piglets",
+	{21, 9}:  "SUPER HARD PCness",
+	{21, 10}: "Splatty Tomato",
+	{22, 1}:  "Dead Kids",
+	{22, 2}:  "A Boy and a Priest",
+	{22, 3}:  "The Problem with a Poo",
+	{22, 4}:  "Tegridy Farms",
+	{22, 5}:  "The Scoots",
+	{22, 6}:  "Time to Get Cereal",
+	{22, 7}:  "Nobody Got Cereal?",
+	{22, 8}:  "Buddha Box",
+	{22, 9}:  "Unfulfilled",
+	{22, 10}: "Bike Parade",
+	{23, 1}:  "Mexican Joker",
+	{23, 2}:  "Band in China",
+	{23, 3}:  "Shots!!!",
+	{23, 4}:  "Let Them Eat Goo",
+	{23, 5}:  "Tegridy Farms Halloween Special",
+	{23, 6}:  "Season Finale",
+	{23, 7}:  "Board Girls",
+	{23, 8}:  "Turd Burglars",
+	{23, 9}:  "Basic Cable",
+	{23, 10}: "Christmas Snow",
+	{25, 1}:  "Pajama Day",
+	{25, 2}:  "The Big Fix",
+	{25, 3}:  "City People",
+	{25, 4}:  "Back to the Cold War",
+	{25, 5}:  "Help, My Teenager Hates Me!",
+	{25, 6}:  "Credigree Weed St. Patrick's Day Special",
+	{26, 1}:  "Cupid Ye",
+	{26, 2}:  "The Worldwide Privacy Tour",
+	{26, 3}:  "Japanese Toilet",
+	{26, 4}:  "Deep Learning",
+	{26, 5}:  "DikinBaus Hot Dogs",
+	{26, 6}:  "Spring Break",
+}
+
+func TitleFor(season, episode int) string {
+	return englishTitles[EpisodeKey{
+		Season: season,
+		Number: episode,
+	}]
+}
+
+func DisplayTitle(season, episode int, fallback string) string {
+	title := strings.TrimSpace(TitleFor(season, episode))
+	if title != "" {
+		return title
+	}
+
+	fallback = strings.TrimSpace(fallback)
+	if fallback != "" {
+		return fallback
+	}
+
+	return fmt.Sprintf("S%02d Episode %d", season, episode)
+}
+
+func SearchableText(season, episode int, fallbackTitle string) string {
+	title := DisplayTitle(season, episode, fallbackTitle)
+
+	return fmt.Sprintf(
+		"S%02dE%02d S%dE%d season %d episode %d %s",
+		season,
+		episode,
+		season,
+		episode,
+		season,
+		episode,
+		title,
+	)
+}
