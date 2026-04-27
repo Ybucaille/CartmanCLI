@@ -136,6 +136,15 @@ func main() {
 		query := strings.Join(args[1:], " ")
 		runSearchMode(query)
 
+	case "reset":
+		if len(args) > 2 {
+			fmt.Println("Usage: cartman reset [--yes]")
+			return
+		}
+
+		yes := len(args) == 2 && (args[1] == "--yes" || args[1] == "-y")
+		runResetMode(yes)
+
 	case "version", "--version", "-v":
 		fmt.Println("CartmanCLI", version)
 
@@ -227,6 +236,32 @@ func runResumeMode() {
 	if err := openWithMPV(target); err != nil {
 		fmt.Println("Erreur mpv:", err)
 	}
+}
+
+func runResetMode(skipConfirm bool) {
+	if !skipConfirm {
+		fmt.Println("Cette commande va supprimer toutes les données locales de CartmanCLI :")
+		fmt.Println("  - dernier épisode regardé")
+		fmt.Println("  - progression mpv watch-later")
+		fmt.Println()
+		fmt.Print(`Tape "reset" pour confirmer, ou Entrée pour annuler > `)
+
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		if input != "reset" {
+			fmt.Println("Reset annulé.")
+			return
+		}
+	}
+
+	if err := history.ResetAll(); err != nil {
+		fmt.Println("Erreur pendant le reset:", err)
+		return
+	}
+
+	fmt.Println("Données CartmanCLI supprimées.")
 }
 
 func runListMode(season int) {
@@ -411,6 +446,7 @@ func printHelp() {
 	fmt.Println("  cartman resume")
 	fmt.Println("  cartman list <saison>")
 	fmt.Println(`  cartman search "mot clé"`)
+	fmt.Println("  cartman reset")
 	fmt.Println("  cartman version")
 	fmt.Println()
 	fmt.Println("Examples:")
@@ -419,6 +455,7 @@ func printHelp() {
 	fmt.Println("  cartman resume")
 	fmt.Println("  cartman list 7")
 	fmt.Println(`  cartman search "warcraft"`)
+	fmt.Println("  cartman reset")
 }
 
 func printUnknownCommand(command string) {

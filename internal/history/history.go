@@ -73,3 +73,12 @@ func WatchLaterDir() (string, error) {
 
 	return path, nil
 }
+
+func ResetAll() error {
+	dir, err := configDir()
+	if err != nil {
+		return err
+	}
+
+	return os.RemoveAll(dir)
+}
