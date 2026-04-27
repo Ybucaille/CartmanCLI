@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"CartmanCLI/internal/cache"
 	"CartmanCLI/internal/history"
 	"CartmanCLI/internal/metadata"
 	"CartmanCLI/internal/scraper"
@@ -94,7 +95,7 @@ func main() {
 	switch args[0] {
 	case "play":
 		if len(args) != 3 {
-			fmt.Println("Usage: cartman play <saison> <episode>")
+			fmt.Println("Usage: cartman play <season> <episode>")
 			return
 		}
 
@@ -115,13 +116,13 @@ func main() {
 
 	case "list":
 		if len(args) != 2 {
-			fmt.Println("Usage: cartman list <saison>")
+			fmt.Println("Usage: cartman list <season>")
 			return
 		}
 
 		season, err := strconv.Atoi(args[1])
 		if err != nil || season <= 0 {
-			fmt.Println("Erreur: saison invalide")
+			fmt.Println("Error: invalid season")
 			return
 		}
 
@@ -129,12 +130,20 @@ func main() {
 
 	case "search":
 		if len(args) < 2 {
-			fmt.Println(`Usage: cartman search "mot clé"`)
+			fmt.Println(`Usage: cartman search "keyword"`)
 			return
 		}
 
 		query := strings.Join(args[1:], " ")
 		runSearchMode(query)
+
+	case "update":
+		if len(args) != 1 {
+			fmt.Println("Usage: cartman update")
+			return
+		}
+
+		runUpdateMode()
 
 	case "reset":
 		if len(args) > 2 {
@@ -171,7 +180,7 @@ func runTUIMode() {
 	)
 
 	if _, err := p.Run(); err != nil {
-		fmt.Println("Erreur TUI:", err)
+		fmt.Println("TUI error:", err)
 		os.Exit(1)
 	}
 }
@@ -179,13 +188,13 @@ func runTUIMode() {
 func parseSeasonEpisodeArgs(rawSeason, rawEpisode string) (int, int, bool) {
 	season, err := strconv.Atoi(rawSeason)
 	if err != nil || season <= 0 {
-		fmt.Println("Erreur: saison invalide")
+		fmt.Println("Error: invalid season")
 		return 0, 0, false
 	}
 
 	episode, err := strconv.Atoi(rawEpisode)
 	if err != nil || episode <= 0 {
-		fmt.Println("Erreur: épisode invalide")
+		fmt.Println("Error: invalid episode")
 		return 0, 0, false
 	}
 
@@ -193,15 +202,27 @@ func parseSeasonEpisodeArgs(rawSeason, rawEpisode string) (int, int, bool) {
 }
 
 func runPlayMode(season, episode int) {
+	if cachedEpisode, ok := cache.FindEpisode(season, episode); ok {
+		if strings.TrimSpace(cachedEpisode.EmbedURL) != "" {
+			playCachedEpisode(cachedEpisode)
+			return
+		}
+
+		if strings.TrimSpace(cachedEpisode.URL) != "" {
+			playEpisode(season, episode, cachedEpisode.URL)
+			return
+		}
+	}
+
 	pageURL, err := scraper.ResolveEpisodeURL(season, episode)
 	if err != nil {
-		fmt.Println("URL réelle non trouvée, tentative fallback.")
+		fmt.Println("Real episode URL not found in cache, trying live fallback.")
 	}
 
 	if pageURL == "" {
 		pageURL, err = scraper.BuildEpisodeURL(season, episode)
 		if err != nil {
-			fmt.Println("Erreur:", err)
+			fmt.Println("Error:", err)
 			return
 		}
 	}
@@ -212,67 +233,331 @@ func runPlayMode(season, episode int) {
 func runResumeMode() {
 	last, err := history.LoadLast()
 	if err != nil {
-		fmt.Println("Aucun épisode à reprendre pour l’instant.")
-		fmt.Println("Lance d’abord un épisode avec : cartman play 1 1")
+		fmt.Println("No episode to resume yet.")
+		fmt.Println("Start one first with: cartman play 1 1")
 		return
 	}
 
 	if last.Season <= 0 || last.Episode <= 0 {
-		fmt.Println("Historique invalide, impossible de reprendre.")
+		fmt.Println("Invalid history data, unable to resume.")
 		return
 	}
 
 	target := preferredTarget(last.PageURL, last.EmbedURL)
 	if strings.TrimSpace(target) == "" {
-		fmt.Println("Historique trouvé, mais aucune URL exploitable.")
+		fmt.Println("History found, but no usable URL is available.")
 		return
 	}
 
 	title := metadata.DisplayTitle(last.Season, last.Episode, "")
 
-	fmt.Printf("Reprise S%02dE%02d · %s\n", last.Season, last.Episode, title)
+	fmt.Printf("Resuming S%02dE%02d · %s\n", last.Season, last.Episode, title)
 	fmt.Println("URL:", target)
 
 	if err := openWithMPV(target); err != nil {
-		fmt.Println("Erreur mpv:", err)
+		fmt.Println("mpv error:", err)
 	}
 }
 
 func runResetMode(skipConfirm bool) {
 	if !skipConfirm {
-		fmt.Println("Cette commande va supprimer toutes les données locales de CartmanCLI :")
-		fmt.Println("  - dernier épisode regardé")
-		fmt.Println("  - progression mpv watch-later")
+		fmt.Println("This command will delete all local CartmanCLI data:")
+		fmt.Println("  - last watched episode")
+		fmt.Println("  - mpv watch-later progress")
+		fmt.Println("  - local episode cache")
 		fmt.Println()
-		fmt.Print(`Tape "reset" pour confirmer, ou Entrée pour annuler > `)
+		fmt.Print(`Type "reset" to confirm, or press Enter to cancel > `)
 
 		reader := bufio.NewReader(os.Stdin)
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
 		if input != "reset" {
-			fmt.Println("Reset annulé.")
+			fmt.Println("Reset cancelled.")
 			return
 		}
 	}
 
 	if err := history.ResetAll(); err != nil {
-		fmt.Println("Erreur pendant le reset:", err)
+		fmt.Println("Failed to reset history:", err)
 		return
 	}
 
-	fmt.Println("Données CartmanCLI supprimées.")
+	if err := cache.ResetAll(); err != nil {
+		fmt.Println("Failed to reset cache:", err)
+		return
+	}
+
+	fmt.Println("CartmanCLI data deleted.")
+}
+
+func runUpdateMode() {
+	p := tea.NewProgram(
+		newUpdateModel(),
+		tea.WithAltScreen(),
+	)
+
+	if _, err := p.Run(); err != nil {
+		fmt.Println("Update TUI error:", err)
+	}
+}
+
+type updateProgressMsg struct {
+	Season       int
+	EpisodeCount int
+	EmbedCount   int
+	Err          error
+}
+
+type updateDoneMsg struct {
+	EpisodeCount int
+	CachePath    string
+	Err          error
+}
+
+type updateModel struct {
+	width       int
+	total       int
+	current     int
+	currentLine string
+	done        bool
+	err         error
+
+	episodeCount int
+	cachePath    string
+
+	ch chan tea.Msg
+}
+
+func newUpdateModel() updateModel {
+	return updateModel{
+		total: len(seasons),
+		ch:    make(chan tea.Msg, len(seasons)+2),
+	}
+}
+
+func (m updateModel) Init() tea.Cmd {
+	return tea.Batch(
+		startUpdateCmd(m.ch),
+		waitUpdateMsg(m.ch),
+	)
+}
+
+func startUpdateCmd(ch chan<- tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		go func() {
+			episodes, err := cache.BuildEpisodes(seasons, func(season int, episodeCount int, embedCount int, err error) {
+				ch <- updateProgressMsg{
+					Season:       season,
+					EpisodeCount: episodeCount,
+					EmbedCount:   embedCount,
+					Err:          err,
+				}
+			})
+
+			if err != nil {
+				ch <- updateDoneMsg{
+					Err: err,
+				}
+				return
+			}
+
+			if err := cache.SaveEpisodes(episodes); err != nil {
+				ch <- updateDoneMsg{
+					Err: err,
+				}
+				return
+			}
+
+			path, _ := cache.CachePath()
+
+			ch <- updateDoneMsg{
+				EpisodeCount: len(episodes),
+				CachePath:    path,
+				Err:          nil,
+			}
+		}()
+
+		return nil
+	}
+}
+
+func waitUpdateMsg(ch <-chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		return <-ch
+	}
+}
+
+func (m updateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q", "esc":
+			return m, tea.Quit
+
+		case "enter":
+			if m.done {
+				return m, tea.Quit
+			}
+		}
+
+	case updateProgressMsg:
+		m.current++
+
+		if msg.Err != nil {
+			m.currentLine = fmt.Sprintf("Current: Season %02d · error: %v", msg.Season, msg.Err)
+		} else {
+			m.currentLine = fmt.Sprintf(
+				"Current: Season %02d · %d episodes · %d embeds",
+				msg.Season,
+				msg.EpisodeCount,
+				msg.EmbedCount,
+			)
+		}
+
+		return m, waitUpdateMsg(m.ch)
+
+	case updateDoneMsg:
+		m.done = true
+		m.err = msg.Err
+		m.episodeCount = msg.EpisodeCount
+		m.cachePath = msg.CachePath
+
+		if msg.Err != nil {
+			m.currentLine = fmt.Sprintf("Update failed: %v", msg.Err)
+		} else {
+			m.current = m.total
+			m.currentLine = "Update complete."
+		}
+	}
+
+	return m, nil
+}
+
+func (m updateModel) View() string {
+	var b strings.Builder
+
+	percent := 0.0
+	if m.total > 0 {
+		percent = float64(m.current) / float64(m.total)
+	}
+
+	if percent > 1 {
+		percent = 1
+	}
+
+	b.WriteString(titleStyle.Render("CartmanCLI Update"))
+	b.WriteString("\n")
+	b.WriteString(subtitleStyle.Render("Fetching episode pages and video embeds."))
+	b.WriteString("\n\n")
+
+	barWidth := 42
+	if m.width > 0 && m.width < 70 {
+		barWidth = 30
+	}
+
+	b.WriteString(renderProgressBar(percent, barWidth))
+	b.WriteString("\n\n")
+
+	b.WriteString(normalStyle.Render(fmt.Sprintf(
+		"Progress: %d/%d seasons",
+		m.current,
+		m.total,
+	)))
+	b.WriteString("\n\n")
+
+	if strings.TrimSpace(m.currentLine) != "" {
+		if strings.Contains(strings.ToLower(m.currentLine), "error") ||
+			strings.Contains(strings.ToLower(m.currentLine), "failed") {
+			b.WriteString(errorStyle.Render(m.currentLine))
+		} else {
+			b.WriteString(normalStyle.Render(m.currentLine))
+		}
+
+		b.WriteString("\n\n")
+	}
+
+	if m.done {
+		if m.err != nil {
+			b.WriteString(errorStyle.Render("Update finished with errors."))
+		} else {
+			b.WriteString(selectedStyle.Render("Update complete."))
+			b.WriteString("\n")
+			b.WriteString(normalStyle.Render(fmt.Sprintf("Episodes saved: %d", m.episodeCount)))
+
+			if strings.TrimSpace(m.cachePath) != "" {
+				b.WriteString("\n")
+				b.WriteString(normalStyle.Render("File: " + m.cachePath))
+			}
+		}
+
+		b.WriteString("\n")
+		b.WriteString(footerStyle.Render("Enter/q quit"))
+	} else {
+		b.WriteString(footerStyle.Render("q cancel"))
+	}
+
+	return lipgloss.Place(
+		maxInt(m.width, 80),
+		24,
+		lipgloss.Center,
+		lipgloss.Center,
+		boxStyle.Width(74).Render(b.String()),
+	)
+}
+
+func renderProgressBar(percent float64, width int) string {
+	if width < 10 {
+		width = 10
+	}
+
+	if percent < 0 {
+		percent = 0
+	}
+
+	if percent > 1 {
+		percent = 1
+	}
+
+	filled := int(percent * float64(width))
+	if filled > width {
+		filled = width
+	}
+
+	empty := width - filled
+
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", empty)
+
+	return fmt.Sprintf("[%s] %3.0f%%", bar, percent*100)
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+
+	return b
 }
 
 func runListMode(season int) {
-	episodes, err := scraper.GetSeasonEpisodes(season)
-	if err != nil {
-		fmt.Println("Erreur:", err)
-		return
+	episodes, ok := cache.EpisodesBySeason(season)
+
+	if !ok {
+		var err error
+		episodes, err = scraper.GetSeasonEpisodes(season)
+		if err != nil {
+			fmt.Println("Error:", err)
+			fmt.Println()
+			fmt.Println("Tip: run `cartman update` to build the local cache.")
+			return
+		}
 	}
 
 	if len(episodes) == 0 {
-		fmt.Printf("Aucun épisode trouvé pour la saison %d.\n", season)
+		fmt.Printf("No episodes found for season %d.\n", season)
 		return
 	}
 
@@ -289,7 +574,14 @@ func runListMode(season int) {
 func runSearchMode(query string) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		fmt.Println(`Usage: cartman search "mot clé"`)
+		fmt.Println(`Usage: cartman search "keyword"`)
+		return
+	}
+
+	episodes, err := cache.LoadEpisodes()
+	if err != nil || len(episodes) == 0 {
+		fmt.Println("Local cache not found or empty.")
+		fmt.Println("Run first: cartman update")
 		return
 	}
 
@@ -314,37 +606,30 @@ func runSearchMode(query string) {
 		}
 	}
 
-	fmt.Printf("Recherche de %q...\n\n", query)
+	fmt.Printf("Searching for %q...\n\n", query)
 
-	for _, season := range seasons {
-		episodes, err := scraper.GetSeasonEpisodes(season)
-		if err != nil {
+	for _, ep := range episodes {
+		searchable := metadata.SearchableText(ep.Season, ep.Number, ep.Title)
+		searchable += " " + ep.URL
+		searchable = normalizeSearch(searchable)
+
+		if wantsSeason > 0 && wantsEpisode > 0 {
+			if ep.Season == wantsSeason && ep.Number == wantsEpisode {
+				matches = append(matches, ep)
+			}
+
 			continue
 		}
 
-		for _, ep := range episodes {
-			searchable := metadata.SearchableText(ep.Season, ep.Number, ep.Title)
-			searchable += " " + ep.URL
-			searchable = normalizeSearch(searchable)
-
-			if wantsSeason > 0 && wantsEpisode > 0 {
-				if ep.Season == wantsSeason && ep.Number == wantsEpisode {
-					matches = append(matches, ep)
-				}
-
-				continue
-			}
-
-			if strings.Contains(searchable, normalizedQuery) {
-				matches = append(matches, ep)
-			}
+		if strings.Contains(searchable, normalizedQuery) {
+			matches = append(matches, ep)
 		}
 	}
 
 	if len(matches) == 0 {
-		fmt.Println("Aucun épisode trouvé.")
+		fmt.Println("No episode found.")
 		fmt.Println()
-		fmt.Println(`Essaie par exemple : cartman search "s10e8" ou cartman list 10`)
+		fmt.Println(`Try for example: cartman search "s10e8" or cartman list 10`)
 		return
 	}
 
@@ -356,20 +641,20 @@ func runSearchMode(query string) {
 	}
 
 	fmt.Println()
-	fmt.Print("Entre le numéro de l'épisode à lancer, ou appuie sur Entrée pour quitter > ")
+	fmt.Print("Enter the episode number to play, or press Enter to quit > ")
 
 	reader := bufio.NewReader(os.Stdin)
 	input, _ := reader.ReadString('\n')
 	input = strings.TrimSpace(input)
 
 	if input == "" {
-		fmt.Println("Fermeture de la recherche.")
+		fmt.Println("Search closed.")
 		return
 	}
 
 	choice, err := strconv.Atoi(input)
 	if err != nil || choice < 1 || choice > len(matches) {
-		fmt.Println("Choix invalide.")
+		fmt.Println("Invalid choice.")
 		return
 	}
 
@@ -413,17 +698,27 @@ func atoiLoose(input string) (int, error) {
 func playEpisode(season, episode int, pageURL string) {
 	title := metadata.DisplayTitle(season, episode, "")
 
-	fmt.Printf("Episode : S%02dE%02d · %s\n", season, episode, title)
+	fmt.Printf("Episode: S%02dE%02d · %s\n", season, episode, title)
 	fmt.Println("Page URL:", pageURL)
 
 	embedURL, err := scraper.GetEmbedURL(pageURL)
 	if err != nil {
-		fmt.Println("Vidéo non détectée automatiquement.")
-		fmt.Println("Ouvre la page directement :", pageURL)
+		fmt.Println("Video could not be detected automatically.")
+		fmt.Println("Open the page directly:", pageURL)
 		return
 	}
 
 	fmt.Println("Embed URL:", embedURL)
+
+	ep := scraper.Episode{
+		Season:   season,
+		Number:   episode,
+		Title:    title,
+		URL:      pageURL,
+		EmbedURL: embedURL,
+	}
+
+	_ = cache.UpsertEpisode(ep)
 
 	_ = history.SaveLast(history.LastWatch{
 		Season:   season,
@@ -433,7 +728,63 @@ func playEpisode(season, episode int, pageURL string) {
 	})
 
 	if err := openWithMPV(embedURL); err != nil {
-		fmt.Println("Erreur mpv:", err)
+		fmt.Println("mpv error:", err)
+	}
+}
+
+func playCachedEpisode(ep scraper.Episode) {
+	title := metadata.DisplayTitle(ep.Season, ep.Number, ep.Title)
+
+	fmt.Printf("Episode: S%02dE%02d · %s\n", ep.Season, ep.Number, title)
+	fmt.Println("Page URL:", ep.URL)
+	fmt.Println("Embed URL:", ep.EmbedURL)
+
+	_ = history.SaveLast(history.LastWatch{
+		Season:   ep.Season,
+		Episode:  ep.Number,
+		PageURL:  ep.URL,
+		EmbedURL: ep.EmbedURL,
+	})
+
+	err := openWithMPV(ep.EmbedURL)
+	if err == nil {
+		return
+	}
+
+	fmt.Println("mpv failed with cached embed:", err)
+	fmt.Println("Refreshing embed from episode page...")
+
+	if strings.TrimSpace(ep.URL) == "" {
+		fmt.Println("Cannot refresh: page URL is empty.")
+		return
+	}
+
+	freshEmbedURL, refreshErr := scraper.GetEmbedURL(ep.URL)
+	if refreshErr != nil {
+		fmt.Println("Refresh failed:", refreshErr)
+		return
+	}
+
+	if strings.TrimSpace(freshEmbedURL) == "" {
+		fmt.Println("Refresh failed: empty embed URL.")
+		return
+	}
+
+	ep.EmbedURL = freshEmbedURL
+
+	_ = cache.UpsertEpisode(ep)
+
+	_ = history.SaveLast(history.LastWatch{
+		Season:   ep.Season,
+		Episode:  ep.Number,
+		PageURL:  ep.URL,
+		EmbedURL: ep.EmbedURL,
+	})
+
+	fmt.Println("New Embed URL:", ep.EmbedURL)
+
+	if err := openWithMPV(ep.EmbedURL); err != nil {
+		fmt.Println("mpv error after refresh:", err)
 	}
 }
 
@@ -442,10 +793,11 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  cartman")
-	fmt.Println("  cartman play <saison> <episode>")
+	fmt.Println("  cartman play <season> <episode>")
 	fmt.Println("  cartman resume")
-	fmt.Println("  cartman list <saison>")
-	fmt.Println(`  cartman search "mot clé"`)
+	fmt.Println("  cartman list <season>")
+	fmt.Println(`  cartman search "keyword"`)
+	fmt.Println("  cartman update")
 	fmt.Println("  cartman reset")
 	fmt.Println("  cartman version")
 	fmt.Println()
@@ -455,11 +807,12 @@ func printHelp() {
 	fmt.Println("  cartman resume")
 	fmt.Println("  cartman list 7")
 	fmt.Println(`  cartman search "warcraft"`)
+	fmt.Println("  cartman update")
 	fmt.Println("  cartman reset")
 }
 
 func printUnknownCommand(command string) {
-	fmt.Println("Commande inconnue:", command)
+	fmt.Println("Unknown command:", command)
 	fmt.Println()
 	printHelp()
 }
@@ -618,7 +971,7 @@ func (m model) View() string {
 	case stepResult:
 		content = renderResultView(m)
 	default:
-		content = "État inconnu\n"
+		content = "Unknown state\n"
 	}
 
 	if m.width <= 0 || m.height <= 0 {
@@ -655,7 +1008,7 @@ func renderSeasonView(m model) string {
 
 	b.WriteString(titleStyle.Render("CartmanCLI"))
 	b.WriteString("\n")
-	b.WriteString(subtitleStyle.Render("Choisis une saison"))
+	b.WriteString(subtitleStyle.Render("Choose a season"))
 	b.WriteString("\n")
 
 	start, end := visibleRange(m.cursor, len(seasons), 14)
@@ -663,9 +1016,9 @@ func renderSeasonView(m model) string {
 	for i := start; i < end; i++ {
 		season := seasons[i]
 
-		line := fmt.Sprintf("  Saison %02d", season)
+		line := fmt.Sprintf("  Season %02d", season)
 		if m.cursor == i {
-			line = selectedStyle.Render("› Saison " + fmt.Sprintf("%02d", season))
+			line = selectedStyle.Render("› Season " + fmt.Sprintf("%02d", season))
 		} else {
 			line = normalStyle.Render(line)
 		}
@@ -675,17 +1028,17 @@ func renderSeasonView(m model) string {
 	}
 
 	if start > 0 {
-		b.WriteString(subtitleStyle.Render("  ↑ saisons précédentes"))
+		b.WriteString(subtitleStyle.Render("  ↑ previous seasons"))
 		b.WriteString("\n")
 	}
 
 	if end < len(seasons) {
-		b.WriteString(subtitleStyle.Render("  ↓ saisons suivantes"))
+		b.WriteString(subtitleStyle.Render("  ↓ next seasons"))
 		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("↑/↓ ou j/k · Entrée valider · q quitter"))
+	b.WriteString(footerStyle.Render("↑/↓ or j/k · Enter select · q quit"))
 
 	return boxStyle.Render(b.String())
 }
@@ -695,7 +1048,7 @@ func renderEpisodeView(m model) string {
 
 	b.WriteString(titleStyle.Render("CartmanCLI"))
 	b.WriteString("\n")
-	b.WriteString(subtitleStyle.Render(fmt.Sprintf("Saison %d sélectionnée", m.season)))
+	b.WriteString(subtitleStyle.Render(fmt.Sprintf("Season %d selected", m.season)))
 	b.WriteString("\n")
 
 	start, end := visibleRange(m.cursor, 30, 14)
@@ -716,17 +1069,17 @@ func renderEpisodeView(m model) string {
 	}
 
 	if start > 0 {
-		b.WriteString(subtitleStyle.Render("  ↑ épisodes précédents"))
+		b.WriteString(subtitleStyle.Render("  ↑ previous episodes"))
 		b.WriteString("\n")
 	}
 
 	if end < 30 {
-		b.WriteString(subtitleStyle.Render("  ↓ épisodes suivants"))
+		b.WriteString(subtitleStyle.Render("  ↓ next episodes"))
 		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("↑/↓ ou j/k · Entrée valider · b retour · q quitter"))
+	b.WriteString(footerStyle.Render("↑/↓ or j/k · Enter select · b back · q quit"))
 
 	return boxStyle.Width(72).Render(b.String())
 }
@@ -742,9 +1095,9 @@ func renderResultView(m model) string {
 	b.WriteString("\n\n")
 
 	if m.loading {
-		b.WriteString(normalStyle.Render("Recherche de la vidéo..."))
+		b.WriteString(normalStyle.Render("Searching for video..."))
 		b.WriteString("\n\n")
-		b.WriteString(footerStyle.Render("Patience, Cartman inspecte les players sans favoritisme."))
+		b.WriteString(footerStyle.Render("Cartman is checking available players."))
 		return boxStyle.Render(b.String())
 	}
 
@@ -756,11 +1109,11 @@ func renderResultView(m model) string {
 	}
 
 	if m.err != nil {
-		b.WriteString(errorStyle.Render("Vidéo non détectée"))
+		b.WriteString(errorStyle.Render("Video not detected"))
 		b.WriteString("\n")
 		b.WriteString(normalStyle.Render(m.err.Error()))
 		b.WriteString("\n\n")
-		b.WriteString(footerStyle.Render("b retour · Entrée/q quitter"))
+		b.WriteString(footerStyle.Render("b back · Enter/q quit"))
 		return boxStyle.Render(b.String())
 	}
 
@@ -768,7 +1121,7 @@ func renderResultView(m model) string {
 	b.WriteString("\n")
 	b.WriteString(urlStyle.Render(m.embedURL))
 	b.WriteString("\n\n")
-	b.WriteString(footerStyle.Render("Entrée ouvrir avec mpv · b retour · q quitter"))
+	b.WriteString(footerStyle.Render("Enter open with mpv · b back · q quit"))
 
 	return boxStyle.Render(b.String())
 }
@@ -873,17 +1226,17 @@ func renderHomeView(m model) string {
 
 	b.WriteString(titleStyle.Render("CartmanCLI"))
 	b.WriteString("\n")
-	b.WriteString(subtitleStyle.Render("Bienvenue dans ton terminal TV pas très catholique."))
+	b.WriteString(subtitleStyle.Render("Watch episodes from your terminal."))
 	b.WriteString("\n\n")
 
 	options := []string{}
 
 	if m.hasLast {
 		title := metadata.DisplayTitle(m.lastWatch.Season, m.lastWatch.Episode, "")
-		options = append(options, fmt.Sprintf("Reprendre S%02dE%02d · %s", m.lastWatch.Season, m.lastWatch.Episode, title))
+		options = append(options, fmt.Sprintf("Resume S%02dE%02d · %s", m.lastWatch.Season, m.lastWatch.Episode, title))
 	}
 
-	options = append(options, "Choisir une saison")
+	options = append(options, "Choose a season")
 
 	for i, option := range options {
 		line := "  " + option
@@ -898,7 +1251,7 @@ func renderHomeView(m model) string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("↑/↓ ou j/k · Entrée valider · q quitter"))
+	b.WriteString(footerStyle.Render("↑/↓ or j/k · Enter select · q quit"))
 
 	return boxStyle.Width(72).Render(b.String())
 }

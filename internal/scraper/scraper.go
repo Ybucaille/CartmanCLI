@@ -48,10 +48,11 @@ var seasonSlugs = map[int]string{
 }
 
 type Episode struct {
-	Season int
-	Number int
-	Title  string
-	URL    string
+	Season   int    `json:"season"`
+	Number   int    `json:"number"`
+	Title    string `json:"title"`
+	URL      string `json:"url"`
+	EmbedURL string `json:"embed_url,omitempty"`
 }
 
 var (
